@@ -1,4 +1,3 @@
-import io.github.bonigarcia.wdm.WebDriverManager;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.After;
@@ -7,16 +6,27 @@ import org.junit.Before;
 import org.junit.Test;
 import org.openqa.selenium.*;
 import org.openqa.selenium.chrome.ChromeDriver;
-import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.interactions.Actions;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
+import webDriverFactory.WebDriverFactory;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
+import java.util.Properties;
 
 public class HomeWork {
 
-    String login = "nemykinats@elfin.tech";
-    String password = "FmAftPJdVFGh";
+    private String login;
+    private String password;
+
+    By firstName = By.id("id_fname");
+    By secondName = By.id("id_lname");
+    By blogName = By.id("id_blog_name");
+    By country = By.xpath("//input[@name = 'country']/following-sibling::div");
+    By city = By.xpath("//input[@name = 'city']/following-sibling::div");
+    By language = By.xpath("//input[@name = 'english_level']/following-sibling::div");
 
     private org.apache.logging.log4j.Logger logger = LogManager.getLogger(Logger.class);
 
@@ -24,8 +34,16 @@ public class HomeWork {
 
     @Before
     public void setUp(){
-        WebDriverManager.chromedriver().setup();
-        driver = new ChromeDriver();
+        driver = WebDriverFactory.create("chrome");
+
+        Properties properties = new Properties();
+        try {
+            properties.load(new FileInputStream("config.properties"));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        login = properties.getProperty("login");
+        password = properties.getProperty("password");
     }
 
     @After
@@ -34,54 +52,54 @@ public class HomeWork {
             driver.quit();
     }
 
-    //задание 1
     @Test
-    public void testOtusSearching(){
-        String URL = "https://duckduckgo.com";
-        String search = "отус";
-        By field = By.xpath("//*[@id=\"search_form_input_homepage\"]");
-        By button = By.xpath("//*[@id='search_button_homepage']");
-        By result = By.xpath("//a[@href=\"https://otus.ru/\" and @data-testid=\"result-title-a\"]/span");
+    public void testDataSaving(){
 
-        ChromeOptions options = new ChromeOptions();
-        options.addArguments("headless");
-        driver = new ChromeDriver(options);
+        String URL = "https://otus.ru";
+
+        driver.manage().window().maximize();
+        driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(5));
         driver.get(URL);
 
-        enterToTextArea(getElement(field), search);
-        getElement(button).click();
+        //авторизация
+        auth();
 
-        List<WebElement> myElements = driver.findElements(result);
-        String firstElement = myElements.get(0).getText();
-        Assert.assertEquals(firstElement, "Онлайн‑курсы для профессионалов, дистанционное обучение современным ...");
-        System.out.println(firstElement);
+        //переход в раздел "О себе"-> "Персональные данные"
+        enterToLK();
 
+        //заполнение данных
+        fillData();
+
+        //сохранение данных
+        driver.findElement(By.xpath("//button[@name = 'continue']")).click();
+
+        //Открытие https://otus.ru в "чистом браузере"
+        driver.quit();
+        driver = new ChromeDriver();
+        driver.get(URL);
+
+        //повторная авторизация и переход в раздел "О себе"-> "Персональные данные"
+        auth();
+        enterToLK();
+
+        //проверка наличия сохраненных данных
+        checkingData();
+
+        logger.info(driver.manage().getCookies());
     }
+
+    private void auth(){
+        driver.findElement(By.cssSelector("button.header2__auth")).click();
+        driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(5));
+        WebElement form = driver.findElement(By.xpath("//form[@action = '/login/']"));
+        form.findElement(By.xpath(".//input[@name = 'email']")).sendKeys(login);
+        form.findElement(By.xpath(".//input[@name = 'password']")).sendKeys(password);
+        form.findElement(By.xpath(".//button[@type = 'submit']")).submit();
+    }
+
     private void enterToTextArea(WebElement element, String text){
         element.clear();
         element.sendKeys(text);
-    }
-
-    //задание 2
-    @Test
-    public void testImageOpening() {
-        String URL = "https://demo.w3layouts.com/demos_new/template_demo/03-10-2020/photoflash-liberty-demo_Free/685659620/web/index.html?_ga=2.181802926.889871791.1632394818-2083132868.1632394818";
-        By image = By.xpath("//img[@src = 'assets/images/p2.jpg']");
-        By popup = By.xpath("//img[@id = 'fullResImage']");
-        String actual = "https://demo.w3layouts.com/demos_new/template_demo/03-10-2020/photoflash-liberty-demo_Free/685659620/web/assets/images/p2.jpg";
-
-        driver.get(URL);
-        driver.manage().window().fullscreen();
-
-        JavascriptExecutor je = (JavascriptExecutor)driver;
-        je.executeScript("arguments[0].scrollIntoView()", getElement(image));
-        je.executeScript("arguments[0].click()", getElement(image));
-
-        WebElement popupImage = getElement(popup);
-
-        if(popupImage.isEnabled() && popupImage.isDisplayed()) {
-            Assert.assertEquals(popupImage.getAttribute("src"), actual);
-        }
     }
 
     protected WebElement getElement(By locator){
@@ -89,27 +107,49 @@ public class HomeWork {
         return wait.until(ExpectedConditions.visibilityOfElementLocated(locator));
     }
 
-    //задание 3
-    @Test
-    public void testOtusAuth(){
-        String URL = "https://otus.ru";
-        By userName = By.xpath("//p[@class = 'header2-menu__item-text header2-menu__item-text__username']");
-        String actual = "Татьяна";
+    private void enterToLK() {
+        By menu = By.xpath("//div[@class = 'header2-menu__item-wrapper header2-menu__item-wrapper__username']");
 
-        driver.manage().window().maximize();
+        Actions action = new Actions(driver);
+        action.moveToElement(getElement(menu));
+        action.perform();
         driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(5));
-        driver.get(URL);
-        auth();
 
-        String userNameText = getElement(userName).getText();
-        Assert.assertEquals(userNameText, actual);
-        logger.info(driver.manage().getCookies());
+        List<WebElement> webElements = driver.findElements(By.xpath("//div[@class = 'header2-menu__dropdown header2__right__menu__item__dropdown header2-menu__dropdown_right']/a"));
+        webElements.get(0).click();
     }
-    private void auth(){
-        driver.findElement(By.cssSelector("button.header2__auth")).click();
-        WebElement form = driver.findElement(By.xpath("//form[@action = '/login/']"));
-        form.findElement(By.xpath(".//input[@name = 'email']")).sendKeys(login);
-        form.findElement(By.xpath(".//input[@name = 'password']")).sendKeys(password);
-        form.findElement(By.xpath(".//button[@type = 'submit']")).submit();
+
+    private void fillData(){
+        enterToTextArea(getElement(firstName), "Тест");
+        enterToTextArea(getElement(secondName), "Тест");
+        enterToTextArea(getElement(blogName), "Тест");
+        driver.findElement(country).click();
+        List<WebElement> webElementsCountry = driver.findElements(By.xpath("//div[@class = 'lk-cv-block__select-scroll lk-cv-block__select-scroll_country js-custom-select-options']/button"));
+        webElementsCountry.get(2).click();
+
+        driver.findElement(city).click();
+        List<WebElement> webElementsCity = driver.findElements(By.xpath("//div[@class = 'lk-cv-block__select-scroll lk-cv-block__select-scroll_city js-custom-select-options']/button"));
+        webElementsCity.get(2).click();
+
+        driver.findElement(language).click();
+        List<WebElement> webElementsLanguage = driver.findElements(By.xpath("//div[@class = 'lk-cv-block__select-scroll  js-custom-select-options']/button"));
+        webElementsLanguage.get(2).click();
+    }
+
+    public void checkTextInTextArea(WebElement element, String expectedText){
+        Assert.assertEquals(expectedText, element.getAttribute("value"));
+    }
+
+    public void checkTextInCheckbox(WebElement element, String expectedText){
+        Assert.assertEquals(expectedText, element.getText());
+    }
+
+    public void checkingData(){
+        checkTextInTextArea(getElement(firstName), "Тест");
+        checkTextInTextArea(getElement(secondName), "Тест");
+        checkTextInTextArea(getElement(blogName), "Тест");
+        checkTextInCheckbox(getElement(country), "Республика Беларусь");
+        checkTextInCheckbox(getElement(city), "Борисов");
+        checkTextInCheckbox(getElement(language), "Элементарный уровень (Elementary)");
     }
 }
