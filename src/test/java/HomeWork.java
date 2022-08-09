@@ -20,6 +20,7 @@ public class HomeWork {
 
     private String login;
     private String password;
+    public String browser;
 
     By firstName = By.id("id_fname");
     By secondName = By.id("id_lname");
@@ -34,8 +35,6 @@ public class HomeWork {
 
     @Before
     public void setUp(){
-        driver = WebDriverFactory.create("chrome");
-
         Properties properties = new Properties();
         try {
             properties.load(new FileInputStream("config.properties"));
@@ -44,6 +43,9 @@ public class HomeWork {
         }
         login = properties.getProperty("login");
         password = properties.getProperty("password");
+        browser = properties.getProperty("browser");
+
+        driver = WebDriverFactory.create(browser.toUpperCase());
     }
 
     @After
