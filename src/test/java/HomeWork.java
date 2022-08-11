@@ -14,6 +14,8 @@ import java.util.Properties;
 
 public class HomeWork {
 
+    private String URL = System.getProperty("baseURL", "https://otus.ru");
+
     private String login;
     private String password;
     public String browser;
@@ -45,8 +47,6 @@ public class HomeWork {
 
     @Test
     public void testDataSaving(){
-
-        String URL = "https://otus.ru";
 
         MainPage firstAuthPage = new MainPage(driver);
 
